@@ -18,7 +18,7 @@ from kivy.clock import Clock
 
 import os
 
-# TODO on continue btn press open folder selector,once folder selected, close selector, close folderpopup, show progress popup, loop through contents of folder, if gif present remove main btn, add scroll_layout, get filename and thumbnail and load into grid layout t-b l-r else show error dialog  
+# TODO show load dialog whilst thumbnails load, add label with name of image below the image buttons. switch image buttons so button is child to image so visual feedback is present when selecting a thumbnail. Move loading thumbnails to seperate class to keep FolderPopup() entirely for popup function and representation
 
 # no idea why **kwargs required in RootWidget __init__ 
 # all init functions in classes inheriting from kivy widgets must pass **kwargs to super constructor
@@ -75,7 +75,7 @@ class FolderPopup(Widget):
 						
 				self.app.root.ids.stack_layout.add_widget(btn,
 						index=len(self.app.root.ids.stack_layout.children)) # add widgets to end 	
-		Clock.schedule_once(self.load_thumbnails) # requires dt argument
+		Clock.schedule_once(self.load_thumbnails) # requires dt argument - wait for next frame
 				
 		# root is presumably created in the GifApp().run() or __init__ method
 		# root is an attribute of app, root points to an instance of RootWidget
@@ -101,8 +101,6 @@ class FolderPopup(Widget):
 		for i in range(len(self.app.root.ids.stack_layout.children)):
 			if self.app.root.ids.stack_layout.children[i] == instance:
 				print(self.fileNames[len(self.app.root.ids.stack_layout.children)-(i+1)])
-				print(instance.pos)
-			
 
 
 
