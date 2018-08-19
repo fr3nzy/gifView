@@ -1,0 +1,24 @@
+<RootWidget>:
+	size: self.width, self.height
+	
+	
+	Button:
+		id: open_popup
+		size_hint: None, None
+		pos_hint: {'center_x': .5, 'center_y': .5}
+		on_release: root.select_folder()
+	
+	ScrollLayout:
+		id: scroll_layout
+		StackLayout:
+			id: stack_layout
+			padding: 10 
+			spacing: 10
+			size_hint_y: None
+			height: self.minimum_height
+			
+			
+			
+			
+			
+
