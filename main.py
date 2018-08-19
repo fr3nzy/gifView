@@ -18,7 +18,7 @@ from kivy.clock import Clock
 
 import os
 
-# TODO on continue btn press open folder selector, once folder selected, close selector, close folderpopup, show progress popup, loop through contents of folder, if gif present remove main btn, add scroll_layout, get filename and thumbnail and load into grid layout t-b l-r else show error dialog  
+# TODO on continue btn press open folder selector,once folder selected, close selector, close folderpopup, show progress popup, loop through contents of folder, if gif present remove main btn, add scroll_layout, get filename and thumbnail and load into grid layout t-b l-r else show error dialog  
 
 # no idea why **kwargs required in RootWidget __init__ 
 # all init functions in classes inheriting from kivy widgets must pass **kwargs to super constructor
