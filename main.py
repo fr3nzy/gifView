@@ -91,10 +91,10 @@ class FolderPopup(Widget):
 		# add images to image buttons				
 		ctr=0
 		for widget in self.app.root.ids.stack_layout.children: # len = len(self.fileNames)
-					widget.add_widget(Image(
-							source=self.dirName+'/'+self.fileNames[len(self.fileNames)-(ctr+1)], 
-							allow_stretch=True, keep_ratio=False, pos=(widget.x,widget.y)))
-					ctr+=1
+			widget.add_widget(Image(
+					source=self.dirName+'/'+self.fileNames[len(self.fileNames)-(ctr+1)], 
+					allow_stretch=True, keep_ratio=False, pos=(widget.x,widget.y)))
+			ctr+=1
 	
 		
 	def gif_press(self, instance):
