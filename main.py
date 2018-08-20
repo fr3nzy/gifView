@@ -70,10 +70,10 @@ class FolderPopup(Widget):
 			if fn[-3:] == 'jpg':
 				self.fileNames.append(fn)
 				
-				btn = Button(size_hint=(None,None),background_normal='img/alpha.png')
-				btn.bind(on_press=self.gif_press)
+				thumbnail = Image(source=self.dirName+'/'+fn),size_hint=(None,None),
+						allow_stretch=True, keep_ratio=False))
 						
-				self.app.root.ids.stack_layout.add_widget(btn,
+				self.app.root.ids.stack_layout.add_widget(thumbnail,
 						index=len(self.app.root.ids.stack_layout.children)) # add widgets to end 	
 		Clock.schedule_once(self.load_thumbnails) # requires dt argument - wait for next frame
 				
@@ -88,19 +88,19 @@ class FolderPopup(Widget):
 		
 		
 	def load_thumbnails(self, dt):
-		# add images to image buttons				
-		ctr=0
-		for widget in self.app.root.ids.stack_layout.children: # len = len(self.fileNames)
-			widget.add_widget(Image(
-					source=self.dirName+'/'+self.fileNames[len(self.fileNames)-(ctr+1)], 
-					allow_stretch=True, keep_ratio=False, pos=(widget.x,widget.y)))
-			ctr+=1
+		# add images to image buttons
+		for image in self.app.root.ids.stack_layout.children: # len = len(self.fileNames)
+			btn = Button(background_normal='img/alpha.png',pos=(widget.x,widget.y))
+			btn.bind(on_press=self.gif_press)
+			image.add_widget(btn)
+				
 	
 		
 	def gif_press(self, instance):
-		for i in range(len(self.app.root.ids.stack_layout.children)):
-			if self.app.root.ids.stack_layout.children[i] == instance:
-				print(self.fileNames[len(self.app.root.ids.stack_layout.children)-(i+1)])
+		for fn in self.fileNames:
+			if fn == instance.parent.source:
+				print(fn)
+		# or simply instance.parent.source? the point is simply to get hold of the relevant url for the button
 
 
 
