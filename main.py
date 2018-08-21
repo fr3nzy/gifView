@@ -36,9 +36,11 @@ class RootWidget(RelativeLayout):
 
 # events aren't triggered if class doesn't inherit from widget 
 # apparently widget is the kivy base class - it seems required for full functionality
+# why do we need to pass **kwargs to super constructor, why not kwargs??
 class FolderPopup(Widget):
 
-	def __init__(self):
+	def __init__(self, **kwargs):
+		super(FolderPopup, self).__init__(**kwargs)
 		pop_layout = BoxLayout(orientation='vertical', spacing=20,padding=10)
 		label = Label(text='Set folder to scan for gifs/webms\n(defaults to $HOME/Pictures folder if non specified)',halign='center',size_hint_y=None)
 		self.txt_input = TextInput(multiline=False,hint_text='eg. /home/user/gifs',size_hint_y=None,height=Window.height/20,focus=False)
@@ -70,8 +72,8 @@ class FolderPopup(Widget):
 			if fn[-3:] == 'jpg':
 				self.fileNames.append(fn)
 				
-				thumbnail = Image(source=self.dirName+'/'+fn),size_hint=(None,None),
-						allow_stretch=True, keep_ratio=False))
+				thumbnail = Image(source=self.dirName+'/'+fn,size_hint=(None,None),
+						allow_stretch=True, keep_ratio=False)
 						
 				self.app.root.ids.stack_layout.add_widget(thumbnail,
 						index=len(self.app.root.ids.stack_layout.children)) # add widgets to end 	
@@ -82,7 +84,7 @@ class FolderPopup(Widget):
 		# ids is child of root and a list of weak references to Widget instances in kv file
 		# stack_layout is weak reference to widget with id stack_layout
 		# children is list of objects child to stack_layout widget - new widgets added to front of list
-		print(self.app.root.ids.stack_layout.children)
+		''' self.app.root.ids.stack_layout.children) '''
 		#  ids contains a list of weakproxy references to the objects referenced by ids
 		# what is weakproxy?
 		
@@ -90,17 +92,14 @@ class FolderPopup(Widget):
 	def load_thumbnails(self, dt):
 		# add images to image buttons
 		for image in self.app.root.ids.stack_layout.children: # len = len(self.fileNames)
-			btn = Button(background_normal='img/alpha.png',pos=(widget.x,widget.y))
+			btn = Button(background_normal='img/alpha.png',pos=(image.x,image.y))
 			btn.bind(on_press=self.gif_press)
 			image.add_widget(btn)
 				
-	
 		
 	def gif_press(self, instance):
-		for fn in self.fileNames:
-			if fn == instance.parent.source:
-				print(fn)
-		# or simply instance.parent.source? the point is simply to get hold of the relevant url for the button
+		print(instance.parent.source)
+		
 
 
 
