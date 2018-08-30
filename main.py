@@ -17,6 +17,7 @@ from kivy.uix.image import Image
 from kivy.uix.video import Video
 from kivy.uix.label import Label
 from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle
 
 import os, subprocess
 
@@ -38,6 +39,10 @@ class RootWidget(RelativeLayout):
 # TODO Why do we inherit from Widget() class, bind doesn't work without it, 
 
 # TODO ids contains a list of weakproxy references to the objects referenced by ids - what is weakproxy?
+
+
+#TODO remove True files from dir and all subdirs on first run of load_layout
+# TODO load pop_layout when 'folder' button is pressed
 class Interface(Widget):
 
 	def __init__(self):
@@ -66,7 +71,7 @@ class Interface(Widget):
 		
 		dirName = os.environ['HOME']+'/Pictures' if self.txt_input.text == '' \
 					else self.txt_input.text
-		self.load_layout(dirName)
+		self.load_layout(dirName, 'first run')
 		
 		
 	def load_layout(self, dir, *args):
@@ -75,48 +80,70 @@ class Interface(Widget):
 		try:
 			if len(self.stack_layout.children)>0: # has stack_layout been been instantiated before?
 				self.app.root.remove_widget(self.scroll_layout)
-				if 'subdir' in args:
-					back_btn = Button(text='Back', \
-												size_hint=(None,None), \
-												size=(80,30), \
-												pos_hint={'x': 0.035, 'center_y': 0.96})
-					back_btn.bind(on_press=lambda instance: self.load_layout(args[1]))
-					self.app.root.add_widget(back_btn)
+				self.app.root.remove_widget(self.app.root.children[0])
 		except Exception as e:
 			print(e)
 		
-		self.scroll_layout = ScrollView()
-		if 'subdir' in args:
-			self.scroll_layout.pos_hint = {'center_x': 0.5, 'center_y': 0.42}
-		else:
-			self.scroll_layout.pos_hint = {'center_x': 0.5, 'center_y': 0.485}
 		
+		# navbar canvas objects load on next frame load_thumbnails so attributes have loaded
+		self.navbar = Widget(size_hint=(None,None), pos_hint={'y':0.932})
+		self.app.root.add_widget(self.navbar)
+		
+		if 'subdir' in args:
+			back_btn = Button(text='Back', \
+										size_hint=(None,None), \
+										size=(80,30), \
+										pos_hint={'x': 0.03, 'center_y': 0.963})
+			back_btn.bind(on_press=lambda instance: self.load_layout(args[1]))
+			self.app.root.add_widget(back_btn)
+		
+		folder_btn = Button(text='folder', \
+									size_hint=(None,None), \
+									size=(80,30), \
+									pos_hint={'x': 0.89,'center_y': 0.963})
+		self.app.root.add_widget(folder_btn)
+		
+		self.scroll_layout = ScrollView(pos_hint={'center_x': 0.5, 'center_y': 0.42})
 		self.stack_layout = StackLayout(padding=12, \
 														spacing=(12,30), \
 														size_hint_y=None)
-		self.stack_layout.height=self.stack_layout.minimum_height
+		
 		self.scroll_layout.add_widget(self.stack_layout)
 		self.app.root.add_widget(self.scroll_layout)
 				
-		img_ctr=0 # for variable thumbnail names
-		self.fNames = []
-		for fn in os.listdir(self.dir):
+		# delete 'True' files from previous runs
+		if 'first run' in args:
+			pass # TODO
 		
+		# if not first time going through dir no need to recreate thumbnails
+		if 'True' not in os.listdir(self.dir): # if first time going through directory
 			# get first frame of webm <fn>
 			try:
 				os.mkdir(self.dir+'/'+'.gif_cache')
 			except: # in order to avoid image name clashes from previous runs
 				subprocess.call(['rm', '-rf', (self.dir+'/'+'.gif_cache')])
-				os.mkdir(self.dir+'/'+'.gif_cache')
-			thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(img_ctr)+'img.jpg'	
+				os.mkdir(self.dir+'/'+'.gif_cache')	
+			subprocess.call(['touch', self.dir+'/'+'True'])
+			first=True
+		else:
+			first=False
+	
+			
+		img_ctr=0 # for variable thumbnail names
+		self.fNames = []
+		for fn in os.listdir(self.dir):
 			
 			if fn[-4:] == 'webm':
+				thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(img_ctr)+'img.jpg'
+				if first:
+					subprocess.call(['ffmpeg', '-i', self.dir+'/'+fn, '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
+					
 				self.fNames.append('{}/{}'.format(self.dir,fn))
-				subprocess.call(['ffmpeg', '-i', self.dir+'/'+fn, '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
 				self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
 						allow_stretch=True, keep_ratio=False)
 				label = Label(text=fn[:10]+'..', text_size=(100, None))
 				img_ctr+=1
+			
 			elif os.path.isdir(self.dir+'/'+fn):
 				if fn == '.gif_cache': # config folder not for viewing
 					continue
@@ -134,7 +161,11 @@ class Interface(Widget):
 			
 			self.stack_layout.add_widget(thumb_layout,
 					index=len(self.stack_layout.children)) # add widgets to end 	
-						
+		
+		# relate stack_layout height to number of children - to allow scroll child must be larger than scroll
+		height = sum([100/4.5 for child in self.stack_layout.children])
+		self.stack_layout.height = height
+		
 		Clock.schedule_once(self.load_thumbnails) # requires dt argument - wait for next frame
 		
 	
@@ -144,6 +175,10 @@ class Interface(Widget):
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
 			btn.bind(on_press=self.gif_press)
 			image.add_widget(btn)
+		# navbar canvas objects	
+		with self.navbar.canvas.before:
+			Color(92/360,92/360,92/360,1) 
+			Rectangle(pos=self.navbar.pos, size=(self.app.root.width,40))
 			
 		
 	def gif_press(self, instance):
@@ -161,12 +196,14 @@ class Interface(Widget):
 			gif = Video(source=source, volume=0, state='play', anim_loop=0, allow_stretch=True)
 			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif) # animate 100 times
 			popup.open()
-			
+
 
 
 class GifApp(App):
 	
 	def build(self):
 		return RootWidget()
+		
+		
 		
 GifApp().run()
