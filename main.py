@@ -8,12 +8,13 @@ from kivy.core.window import Window
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.stacklayout import StackLayout
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.widget import Widget
-from kivy.uix.popup import Popup
+from kivy.uix.progressbar import ProgressBar
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
+from kivy.uix.widget import Widget
 from kivy.uix.button import Button
 from kivy.uix.image import Image
+from kivy.uix.popup import Popup
 from kivy.uix.video import Video
 from kivy.uix.label import Label
 from kivy.clock import Clock
@@ -38,10 +39,8 @@ class RootWidget(RelativeLayout):
 # TODO when is it actually used?
 # TODO Why do we inherit from Widget() class, bind doesn't work without it, 
 
-# TODO ids contains a list of weakproxy references to the objects referenced by ids - what is weakproxy?
+#TODO understand gui main loop and why waiting for frames is important
 
-
-#TODO remove True files from dir and all subdirs on first run of load_layout
 # TODO load pop_layout when 'folder' button is pressed
 class Interface(Widget):
 
@@ -71,11 +70,14 @@ class Interface(Widget):
 		
 		dirName = os.environ['HOME']+'/Pictures' if self.txt_input.text == '' \
 					else self.txt_input.text
-		self.load_layout(dirName, 'first run')
+		Clock.schedule_once(lambda dt: self.load_layout(dirName, 'first run'), 0.13)
 		
 		
 	def load_layout(self, dir, *args):
 		self.dir = dir
+		
+		##########################################################
+		###################### base layout ############################
 		
 		try:
 			if len(self.stack_layout.children)>0: # has stack_layout been been instantiated before?
@@ -85,7 +87,7 @@ class Interface(Widget):
 			print(e)
 		
 		
-		# navbar canvas objects load on next frame load_thumbnails so attributes have loaded
+		# navbar canvas objects load on next frame(s) load_button() so attributes have loaded
 		self.navbar = Widget(size_hint=(None,None), pos_hint={'y':0.932})
 		self.app.root.add_widget(self.navbar)
 		
@@ -110,39 +112,51 @@ class Interface(Widget):
 		
 		self.scroll_layout.add_widget(self.stack_layout)
 		self.app.root.add_widget(self.scroll_layout)
-				
-		# delete 'True' files from previous runs
+	
+		#######################################################			
+		
+		# delete ',gif_cache' dir from previous run in case changes have been made since then
 		if 'first run' in args:
-			pass # TODO
+			for directory,subdir,files in os.walk(self.dir):
+				subprocess.call(['rm', '-rf', directory+'/.gif_cache'])
 		
 		# if not first time going through dir no need to recreate thumbnails
-		if 'True' not in os.listdir(self.dir): # if first time going through directory
-			# get first frame of webm <fn>
-			try:
-				os.mkdir(self.dir+'/'+'.gif_cache')
-			except: # in order to avoid image name clashes from previous runs
-				subprocess.call(['rm', '-rf', (self.dir+'/'+'.gif_cache')])
-				os.mkdir(self.dir+'/'+'.gif_cache')	
-			subprocess.call(['touch', self.dir+'/'+'True'])
-			first=True
+		if '.gif_cache' not in os.listdir(self.dir): # if first time going through directory
+			self.first=True		
+			# loading screen
+			self.progress = ProgressBar(
+					max=sum([1 if (fn[-4:] == 'webm') or (os.path.isdir(''.join([self.dir,'/',fn]))) else 0 for fn in os.listdir(self.dir)]))
+			self.loading_popup = Popup(title='Loading thumbnails..', \
+												content=self.progress, \
+												size_hint=(0.4,0.3), \
+												auto_dismiss=False)
+			self.loading_popup.open()
+			os.mkdir(self.dir+'/'+'.gif_cache')	
 		else:
-			first=False
+			self.first=False
+		
+		Clock.schedule_once(lambda dt: self.load_thumbnails(), 0.15)
 	
-			
-		img_ctr=0 # for variable thumbnail names
+	
+	def load_thumbnails(self):
+		img_ctr,self.total_ctr=0,1 # for variable thumbnail names
 		self.fNames = []
 		for fn in os.listdir(self.dir):
-			
+		
 			if fn[-4:] == 'webm':
 				thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(img_ctr)+'img.jpg'
-				if first:
+				if self.first: # create thumbnails
+					# get first frame of webm <fn>
 					subprocess.call(['ffmpeg', '-i', self.dir+'/'+fn, '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
+					Clock.schedule_once(self.update_progress, 0.1)
+					
 					
 				self.fNames.append('{}/{}'.format(self.dir,fn))
 				self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
 						allow_stretch=True, keep_ratio=False)
 				label = Label(text=fn[:10]+'..', text_size=(100, None))
 				img_ctr+=1
+				self.total_ctr+=1
 			
 			elif os.path.isdir(self.dir+'/'+fn):
 				if fn == '.gif_cache': # config folder not for viewing
@@ -151,6 +165,7 @@ class Interface(Widget):
 				self.thumbnail = Image(source='img/System-folder-icon.png',size_hint=(None,None),
 						allow_stretch=True, keep_ratio=False)
 				label = Label(text=fn[:10]+'..', text_size=(100, None))
+				self.total_ctr+=1
 			else:
 				continue
 				
@@ -166,10 +181,15 @@ class Interface(Widget):
 		height = sum([100/4.5 for child in self.stack_layout.children])
 		self.stack_layout.height = height
 		
-		Clock.schedule_once(self.load_thumbnails) # requires dt argument - wait for next frame
+		try:
+			self.loading_popup.dismiss()
+		except Exception as e:
+			print('\n\n\n'+str(e)+'\n\n\n')
+		
+		Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
 		
 	
-	def load_thumbnails(self, dt):
+	def load_buttons(self, dt):
 		for layout in self.stack_layout.children: # images are children to gridlayouts which are child to stacklayout
 			image = layout.children[1] # widgets are added to front of list not end 
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
@@ -194,8 +214,12 @@ class Interface(Widget):
 			self.load_layout(source, 'subdir', self.dir) # self.dir is current working dir before moving to subdir
 		else:
 			gif = Video(source=source, volume=0, state='play', anim_loop=0, allow_stretch=True)
-			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif) # animate 100 times
+			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif)
 			popup.open()
+			
+	def update_progress(self, dt):
+		self.progress.value = self.total_ctr
+		print(self.progress.value)
 
 
 
