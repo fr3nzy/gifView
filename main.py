@@ -34,13 +34,12 @@ class RootWidget(RelativeLayout):
 
 
 
-# TODO events aren't triggered if class doesn't inherit from widget 
-# TODO apparently widget is the kivy base class - it seems required for full functionality
-# TODO when is it actually used?
-# TODO Why do we inherit from Widget() class, bind doesn't work without it, 
+# TODO events aren't triggered if class doesn't inherit from Widget class
+# TODO when is it actually used?  bind doesn't work without it, 
 
-#TODO understand gui main loop and why waiting for frames is important
-
+#TODO understand kivy gui main loop ->
+# TODO back button stays locked until line until certain period of time has passed when entering parent dir - confusing..
+# TODO back button then is only hidden - the area is still active?? - use action bar instead?
 # TODO load pop_layout when 'folder' button is pressed
 class Interface(Widget):
 
@@ -70,6 +69,7 @@ class Interface(Widget):
 		
 		dirName = os.environ['HOME']+'/Pictures' if self.txt_input.text == '' \
 					else self.txt_input.text
+					
 		Clock.schedule_once(lambda dt: self.load_layout(dirName, 'first run'), 0.13)
 		
 		
@@ -135,62 +135,67 @@ class Interface(Widget):
 		else:
 			self.first=False
 		
-		Clock.schedule_once(lambda dt: self.load_thumbnails(), 0.15)
+		self.ctr=0
+		self.fNames = []
+		self.fns = os.listdir(self.dir)
+		Clock.schedule_interval(lambda dt: self.load_thumbnails(), 0)
 	
 	
 	def load_thumbnails(self):
-		img_ctr,self.total_ctr=0,1 # for variable thumbnail names
-		self.fNames = []
-		for fn in os.listdir(self.dir):
-		
-			if fn[-4:] == 'webm':
-				thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(img_ctr)+'img.jpg'
-				if self.first: # create thumbnails
-					# get first frame of webm <fn>
-					subprocess.call(['ffmpeg', '-i', self.dir+'/'+fn, '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
-					Clock.schedule_once(self.update_progress, 0.1)
-					
-					
-				self.fNames.append('{}/{}'.format(self.dir,fn))
-				self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
-						allow_stretch=True, keep_ratio=False)
-				label = Label(text=fn[:10]+'..', text_size=(100, None))
-				img_ctr+=1
-				self.total_ctr+=1
+		if self.ctr == len(self.fns):
+			# if we have gone through all files in current dir
+			try:
+				self.loading_popup.dismiss()
+			except Exception as e:
+				print('\n\n\n'+str(e)+'\n\n\n')
 			
-			elif os.path.isdir(self.dir+'/'+fn):
-				if fn == '.gif_cache': # config folder not for viewing
-					continue
-				self.fNames.append('{}/{}'.format(self.dir,fn))
-				self.thumbnail = Image(source='img/System-folder-icon.png',size_hint=(None,None),
-						allow_stretch=True, keep_ratio=False)
-				label = Label(text=fn[:10]+'..', text_size=(100, None))
-				self.total_ctr+=1
-			else:
-				continue
+			# relate stack_layout height to number of children - to allow scroll child must be larger than scroll
+			height = sum([100/4.5 for child in self.stack_layout.children])
+			self.stack_layout.height = height	
+			
+			Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
+			return False # cancels clock event
+		
+		if self.fns[self.ctr][-4:] == 'webm':
+			thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(self.ctr)+'img.jpg'
+			if self.first: # create thumbnails
+				# get first frame of webm
+				subprocess.call(['ffmpeg', '-i', self.dir+'/'+self.fns[self.ctr], '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
+				self.progress.value+=1
 				
-			# thumb_layout size defaults to 100,100 so all children will extend past layout without increasing size
-			thumb_layout = BoxLayout(orientation='vertical', size_hint=(None,None), spacing=15) 
-			thumb_layout.add_widget(self.thumbnail)
-			thumb_layout.add_widget(label)
+			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
+			self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
+					allow_stretch=True, keep_ratio=False)
+			label = Label(text=self.fns[self.ctr][:10]+'..', text_size=(100, None))
 			
-			self.stack_layout.add_widget(thumb_layout,
-					index=len(self.stack_layout.children)) # add widgets to end 	
+		elif os.path.isdir(self.dir+'/'+self.fns[self.ctr]):
+			if self.fns[self.ctr] == '.gif_cache': # config folder not for viewing
+				self.ctr+=1
+				return
+			if self.first:
+				self.progress.value+=1
+				
+			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
+			self.thumbnail = Image(source='img/System-folder-icon.png',size_hint=(None,None),
+					allow_stretch=True, keep_ratio=False)
+			label = Label(text=self.fns[self.ctr][:10]+'..', text_size=(100, None))
+			
+		else:
+			self.ctr+=1
+			return
+			
+		# thumb_layout size defaults to 100,100 so all children will extend past layout without increasing size
+		thumb_layout = BoxLayout(orientation='vertical', size_hint=(None,None), spacing=15) 
+		thumb_layout.add_widget(self.thumbnail)
+		thumb_layout.add_widget(label)
 		
-		# relate stack_layout height to number of children - to allow scroll child must be larger than scroll
-		height = sum([100/4.5 for child in self.stack_layout.children])
-		self.stack_layout.height = height
-		
-		try:
-			self.loading_popup.dismiss()
-		except Exception as e:
-			print('\n\n\n'+str(e)+'\n\n\n')
-		
-		Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
+		self.stack_layout.add_widget(thumb_layout,
+				index=len(self.stack_layout.children)) # add widgets to end 	
+		self.ctr+=1
 		
 	
 	def load_buttons(self, dt):
-		for layout in self.stack_layout.children: # images are children to gridlayouts which are child to stacklayout
+		for layout in self.stack_layout.children: # images are children to boxlayouts which are child to stacklayout
 			image = layout.children[1] # widgets are added to front of list not end 
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
 			btn.bind(on_press=self.gif_press)
@@ -215,12 +220,8 @@ class Interface(Widget):
 		else:
 			gif = Video(source=source, volume=0, state='play', anim_loop=0, allow_stretch=True)
 			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif)
-			popup.open()
-			
-	def update_progress(self, dt):
-		self.progress.value = self.total_ctr
-		print(self.progress.value)
-
+			popup.open()	
+		
 
 
 class GifApp(App):
