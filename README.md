@@ -1,2 +1,2 @@
 # gifView
-gif gallery using Kivy 
+WebM gallery using Kivy 
