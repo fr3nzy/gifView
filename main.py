@@ -33,18 +33,18 @@ class RootWidget(RelativeLayout):
 		Interface()
 
 
-
-# TODO events aren't triggered if class doesn't inherit from Widget class
-# TODO when is it actually used?  bind doesn't work without it, 
-
+#TODO events aren't triggered if class doesn't inherit from Widget class
+#TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ->
-# TODO back button stays locked until line until certain period of time has passed when entering parent dir - confusing..
-# TODO back button then is only hidden - the area is still active?? - use action bar instead?
-# TODO load pop_layout when 'folder' button is pressed
+
 class Interface(Widget):
 
 	def __init__(self):
 		super().__init__()
+		self.folder_popup()
+		
+	
+	def folder_popup(self, *args):
 		pop_layout = BoxLayout(orientation='vertical', spacing=20,padding=10)
 		label = Label(text='Set folder to scan for gifs/webms\n(defaults to $HOME/Pictures folder if non specified)',halign='center',size_hint_y=None)
 		self.txt_input = TextInput(multiline=False,hint_text='eg. /home/user/gifs',size_hint_y=None,height=Window.height/20,focus=False)
@@ -57,15 +57,19 @@ class Interface(Widget):
 		
 		self.popup = Popup(title='Select Folder',
 				content=pop_layout,
-				size_hint=(0.5,0.5), auto_dismiss=False)
-		self.popup.open()		
-	
+				size_hint=(0.5,0.5))
+		self.popup.auto_dismiss = True if 'not first' in args else False
+		self.popup.open()	
+		
 	
 	# on_press event triggers callback passed with parameter - instance of btn here
 	def btn_press(self, instance):
 		self.popup.dismiss()
 		self.app = App.get_running_app()
-		self.app.root.remove_widget(self.app.root.ids.open_popup) 
+		try:
+			self.app.root.remove_widget(self.app.root.ids.open_popup) 
+		except Exception as e:
+			print('\n\n\n'+str(e)+'\n\n\n')
 		
 		dirName = os.environ['HOME']+'/Pictures' if self.txt_input.text == '' \
 					else self.txt_input.text
@@ -80,9 +84,9 @@ class Interface(Widget):
 		###################### base layout ############################
 		
 		try:
-			if len(self.stack_layout.children)>0: # has stack_layout been been instantiated before?
-				self.app.root.remove_widget(self.scroll_layout)
-				self.app.root.remove_widget(self.app.root.children[0])
+			if len(self.app.root.children)>0: # has stack_layout been been instantiated before?
+				for widget in self.app.root.children:
+					self.app.root.remove_widget(widget)
 		except Exception as e:
 			print(e)
 		
@@ -96,13 +100,14 @@ class Interface(Widget):
 										size_hint=(None,None), \
 										size=(80,30), \
 										pos_hint={'x': 0.03, 'center_y': 0.963})
-			back_btn.bind(on_press=lambda instance: self.load_layout(args[1]))
+			back_btn.bind(on_press=self.back_btn_setup)
 			self.app.root.add_widget(back_btn)
 		
 		folder_btn = Button(text='folder', \
 									size_hint=(None,None), \
 									size=(80,30), \
 									pos_hint={'x': 0.89,'center_y': 0.963})
+		folder_btn.bind(on_press=lambda instance: self.folder_popup('not first'))
 		self.app.root.add_widget(folder_btn)
 		
 		self.scroll_layout = ScrollView(pos_hint={'center_x': 0.5, 'center_y': 0.42})
@@ -119,6 +124,8 @@ class Interface(Widget):
 		if 'first run' in args:
 			for directory,subdir,files in os.walk(self.dir):
 				subprocess.call(['rm', '-rf', directory+'/.gif_cache'])
+			self.dirNames = [] # when subdir is entered parent dir added to index 0,
+			#when back pressed & parent dir entered, index 0 is removed so new index 0 is new parent dir
 		
 		# if not first time going through dir no need to recreate thumbnails
 		if '.gif_cache' not in os.listdir(self.dir): # if first time going through directory
@@ -216,11 +223,22 @@ class Interface(Widget):
 	
 	def gifView(self, source):
 		if os.path.isdir(source):
-			self.load_layout(source, 'subdir', self.dir) # self.dir is current working dir before moving to subdir
+			self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
+			self.load_layout(source, 'subdir')
 		else:
 			gif = Video(source=source, volume=0, state='play', anim_loop=0, allow_stretch=True)
 			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif)
 			popup.open()	
+			
+	
+	def back_btn_setup(self, instance):
+		previous_dir = self.dirNames[0]
+		if len(self.dirNames)==1:
+			del self.dirNames[0]
+			self.load_layout(previous_dir) 
+		else: 
+			del self.dirNames[0]
+			self.load_layout(previous_dir,'subdir')
 		
 
 
