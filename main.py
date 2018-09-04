@@ -37,6 +37,10 @@ class RootWidget(RelativeLayout):
 #TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ->
 
+#TODO gifView popup has moveable slider to change webm position, play, pause, next, back, mute buttons
+#TODO load up gifs not just webms with seperate popup view
+#TODO search through files shown
+
 class Interface(Widget):
 
 	def __init__(self):
@@ -96,19 +100,23 @@ class Interface(Widget):
 		self.app.root.add_widget(self.navbar)
 		
 		if 'subdir' in args:
-			back_btn = Button(text='Back', \
-										size_hint=(None,None), \
-										size=(80,30), \
-										pos_hint={'x': 0.03, 'center_y': 0.963})
-			back_btn.bind(on_press=self.back_btn_setup)
-			self.app.root.add_widget(back_btn)
-		
-		folder_btn = Button(text='folder', \
+			img = Image(source='img/back.png', \
 									size_hint=(None,None), \
-									size=(80,30), \
-									pos_hint={'x': 0.89,'center_y': 0.963})
-		folder_btn.bind(on_press=lambda instance: self.folder_popup('not first'))
-		self.app.root.add_widget(folder_btn)
+									pos_hint={'x': 0.03, 'center_y': 0.963}, \
+									size=(80,30), allow_stretch=True)	
+			self.back_btn = Button(background_normal='img/alpha.png')
+			self.back_btn.bind(on_release=self.back_btn_setup)
+			img.add_widget(self.back_btn)
+			self.app.root.add_widget(img)
+		
+		img = Image(source='img/folder.png', \
+							size_hint=(None,None), \
+							size=(80,30), allow_stretch=True, \
+							pos_hint={'x': 0.89,'center_y': 0.963})
+		self.folder_btn = Button(background_normal='img/alpha.png')
+		self.folder_btn.bind(on_release=lambda instance: self.folder_popup('not first'))
+		img.add_widget(self.folder_btn)
+		self.app.root.add_widget(img)
 		
 		self.scroll_layout = ScrollView(pos_hint={'center_x': 0.5, 'center_y': 0.42})
 		self.stack_layout = StackLayout(padding=12, \
@@ -149,8 +157,7 @@ class Interface(Widget):
 	
 	
 	def load_thumbnails(self):
-		if self.ctr == len(self.fns):
-			# if we have gone through all files in current dir
+		if self.ctr == len(self.fns): # if we have gone through all files in current dir
 			try:
 				self.loading_popup.dismiss()
 			except Exception as e:
@@ -163,6 +170,13 @@ class Interface(Widget):
 			Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
 			return False # cancels clock event
 		
+		# slice filename str if too long to fit in label optimally
+		if len(self.fns[self.ctr]) < 11:
+			label_fn = self.fns[self.ctr]
+		else:
+			label_fn = self.fns[self.ctr][:10]+'..'
+			
+		
 		if self.fns[self.ctr][-4:] == 'webm':
 			thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(self.ctr)+'img.jpg'
 			if self.first: # create thumbnails
@@ -173,7 +187,7 @@ class Interface(Widget):
 			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
 			self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
 					allow_stretch=True, keep_ratio=False)
-			label = Label(text=self.fns[self.ctr][:10]+'..', text_size=(100, None))
+			label = Label(text=label_fn, text_size=(100, None))
 			
 		elif os.path.isdir(self.dir+'/'+self.fns[self.ctr]):
 			if self.fns[self.ctr] == '.gif_cache': # config folder not for viewing
@@ -185,7 +199,7 @@ class Interface(Widget):
 			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
 			self.thumbnail = Image(source='img/System-folder-icon.png',size_hint=(None,None),
 					allow_stretch=True, keep_ratio=False)
-			label = Label(text=self.fns[self.ctr][:10]+'..', text_size=(100, None))
+			label = Label(text=label_fn, text_size=(100, None))
 			
 		else:
 			self.ctr+=1
@@ -205,12 +219,19 @@ class Interface(Widget):
 		for layout in self.stack_layout.children: # images are children to boxlayouts which are child to stacklayout
 			image = layout.children[1] # widgets are added to front of list not end 
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
-			btn.bind(on_press=self.gif_press)
+			btn.bind(on_release=self.gif_press)
 			image.add_widget(btn)
 		# navbar canvas objects	
 		with self.navbar.canvas.before:
 			Color(92/360,92/360,92/360,1) 
 			Rectangle(pos=self.navbar.pos, size=(self.app.root.width,40))
+		# navbar dir btn property updates
+		self.folder_btn.x = self.folder_btn.parent.x
+		self.folder_btn.y = self.folder_btn.parent.y-5 # idk why -5?
+		try:
+			self.back_btn.pos = self.back_btn.parent.pos
+		except Exception as e:
+			print('\n\n\n'+str(e)+'\n\n\n')
 			
 		
 	def gif_press(self, instance):
