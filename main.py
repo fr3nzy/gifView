@@ -15,12 +15,14 @@ from kivy.uix.widget import Widget
 from kivy.uix.button import Button
 from kivy.uix.image import Image
 from kivy.uix.popup import Popup
+from kivy.uix.slider import Slider
 from kivy.uix.video import Video
 from kivy.uix.label import Label
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 
 import os, subprocess
+from PIL import Image as pil_img
 
 
 class RootWidget(RelativeLayout):
@@ -38,6 +40,7 @@ class RootWidget(RelativeLayout):
 #TODO understand kivy gui main loop ->
 
 #TODO gifView popup has moveable slider to change webm position, play, pause, next, back, mute buttons
+#TODO add image to buttons not the other way round
 #TODO load up gifs not just webms with seperate popup view
 #TODO search through files shown
 
@@ -100,23 +103,20 @@ class Interface(Widget):
 		self.app.root.add_widget(self.navbar)
 		
 		if 'subdir' in args:
-			img = Image(source='img/back.png', \
-									size_hint=(None,None), \
-									pos_hint={'x': 0.03, 'center_y': 0.963}, \
-									size=(80,30), allow_stretch=True)	
-			self.back_btn = Button(background_normal='img/alpha.png')
+			self.back_btn = Button(size_hint=(None,None), size=(80,30), \
+											pos_hint={'x': 0.003,'center_y': 0.963})
+			img = Image(source='img/alpha.png', allow_stretch=True, size=(80,34))
 			self.back_btn.bind(on_release=self.back_btn_setup)
-			img.add_widget(self.back_btn)
-			self.app.root.add_widget(img)
+			self.back_btn.add_widget(img)
+			self.app.root.add_widget(self.back_btn)
 		
-		img = Image(source='img/folder.png', \
-							size_hint=(None,None), \
-							size=(80,30), allow_stretch=True, \
-							pos_hint={'x': 0.89,'center_y': 0.963})
-		self.folder_btn = Button(background_normal='img/alpha.png')
+		# img source is alpha until interface loaded otherwise img visibile at 0,0 
+		self.folder_btn = Button(size_hint=(None,None), size=(80,30), \
+											pos_hint={'x': 0.89,'center_y': 0.963})
+		img = Image(source='img/alpha.png', allow_stretch=True, size=(80,24))
 		self.folder_btn.bind(on_release=lambda instance: self.folder_popup('not first'))
-		img.add_widget(self.folder_btn)
-		self.app.root.add_widget(img)
+		self.folder_btn.add_widget(img)
+		self.app.root.add_widget(self.folder_btn)
 		
 		self.scroll_layout = ScrollView(pos_hint={'center_x': 0.5, 'center_y': 0.42})
 		self.stack_layout = StackLayout(padding=12, \
@@ -226,10 +226,12 @@ class Interface(Widget):
 			Color(92/360,92/360,92/360,1) 
 			Rectangle(pos=self.navbar.pos, size=(self.app.root.width,40))
 		# navbar dir btn property updates
-		self.folder_btn.x = self.folder_btn.parent.x
-		self.folder_btn.y = self.folder_btn.parent.y-5 # idk why -5?
+		self.folder_btn.children[0].source = 'img/folder.png'
+		self.folder_btn.children[0].x = self.folder_btn.x
+		self.folder_btn.children[0].y = self.folder_btn.y+4 # why +5?
 		try:
-			self.back_btn.pos = self.back_btn.parent.pos
+			self.back_btn.children[0].source = 'img/back.png'
+			self.back_btn.children[0].pos = self.back_btn.pos
 		except Exception as e:
 			print('\n\n\n'+str(e)+'\n\n\n')
 			
@@ -239,18 +241,41 @@ class Interface(Widget):
 			if instance == self.stack_layout.children[i].children[1].children[0]:
 				# loop continues at some unkown point when widgets have been removed resulting in index error
 				# return breaks the loop so..
-				return self.gifView(self.fNames[i]) 
+				return self.gifView(self.fNames[i], instance) 
 	
 	
-	def gifView(self, source):
+	def gifView(self, source, widget):		
 		if os.path.isdir(source):
 			self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
 			self.load_layout(source, 'subdir')
 		else:
-			gif = Video(source=source, volume=0, state='play', anim_loop=0, allow_stretch=True)
-			popup = Popup(title=source, size_hint=(0.6,0.6),content=gif)
+			self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
+									allow_stretch=True, size_hint=(1,0.85), pos_hint={'y':0.15})
+			self.slider = Slider(size_hint=(0.9,None), height=10, pos_hint={'center_x':0.5, 'y':0.1})
+			
+			relative_layout = RelativeLayout()
+			relative_layout.add_widget(self.gif)
+			relative_layout.add_widget(self.slider)
+			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout)
 			popup.open()	
 			
+			self.loaded_check = Clock.schedule_interval(self.gif_loaded, 0)
+			
+	def gif_loaded(self, dt):
+		if self.gif.loaded:
+			self.slider.max=self.gif.duration
+			self.loaded_check.cancel()
+			# gif.duration / (gif.duration // 1) - in order for slider movement to be truly accurate to len of video
+			slider_update = Clock.schedule_interval(self.update_slider, self.gif.duration / (self.gif.duration // 1))
+	
+	def update_slider(self, dt):
+		print(self.gif.position)
+		self.slider.value+=1
+		# rounding of floating point division for silder_update implies slight difference 
+		# between final clock callback video.position and actual video.duration
+		if (self.gif.position // 1) == (self.gif.duration // 1): 
+			return False
+
 	
 	def back_btn_setup(self, instance):
 		previous_dir = self.dirNames[0]
