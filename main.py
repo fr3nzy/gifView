@@ -22,7 +22,6 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 
 import os, subprocess
-from PIL import Image as pil_img
 
 
 class RootWidget(RelativeLayout):
@@ -39,8 +38,8 @@ class RootWidget(RelativeLayout):
 #TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ->
 
-#TODO gifView popup has moveable slider to change webm position, play, pause, next, back, mute buttons
-#TODO add image to buttons not the other way round
+#TODO gifView popup has play, pause, next, back, mute buttons
+#TODO connect callbacks to gifview buttons
 #TODO load up gifs not just webms with seperate popup view
 #TODO search through files shown
 
@@ -104,7 +103,7 @@ class Interface(Widget):
 		
 		if 'subdir' in args:
 			self.back_btn = Button(size_hint=(None,None), size=(80,30), \
-											pos_hint={'x': 0.003,'center_y': 0.963})
+											pos_hint={'x': 0.005,'center_y': 0.963})
 			img = Image(source='img/alpha.png', allow_stretch=True, size=(80,34))
 			self.back_btn.bind(on_release=self.back_btn_setup)
 			self.back_btn.add_widget(img)
@@ -242,41 +241,57 @@ class Interface(Widget):
 				# loop continues at some unkown point when widgets have been removed resulting in index error
 				# return breaks the loop so..
 				return self.gifView(self.fNames[i], instance) 
-	
+		
 	
 	def gifView(self, source, widget):		
 		if os.path.isdir(source):
 			self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
 			self.load_layout(source, 'subdir')
 		else:
-			self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
-									allow_stretch=True, size_hint=(1,0.85), pos_hint={'y':0.15})
-			self.slider = Slider(size_hint=(0.9,None), height=10, pos_hint={'center_x':0.5, 'y':0.1})
-			
+			def update_properties(instance):
+				# center play/pause image
+				img.center_x = img.parent.x + (img.parent.width / 2)
+				img.center_y = img.parent.y + (img.parent.height / 2)
+				
 			relative_layout = RelativeLayout()
-			relative_layout.add_widget(self.gif)
-			relative_layout.add_widget(self.slider)
 			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout)
+			
+			self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
+									allow_stretch=True, size_hint=(1,0.9), pos_hint={'y':0.09})
+			self.close_btn = Button(text='close [x]', size_hint=(None,None), size=(70,20), \
+												pos_hint={'x':0.003,'y':0.003}, background_normal='img/alpha.png')
+			self.close_btn.bind(on_release=lambda instance: popup.dismiss())
+			
+			self.mute_btn = Button(text='mute [x]', size_hint=(None,None), size=(70,20), \
+												pos_hint={'x':0.004,'y':0.04}, background_normal='img/alpha.png')
+			
+			self.prev_btn = Button(text='[<-] previous', size_hint=(None,None), pos_hint={'x':0.2, 'y':0.003},  \
+											size=(100,28), background_normal='img/alpha.png')
+											
+			self.next_btn = Button(text='next [->]', size_hint=(None,None), pos_hint={'x':0.88	, 'y':0.003}, \
+											size=(70, 28), background_normal='img/alpha.png')
+											
+			self.play_pause_btn = Button(size_hint=(None,None), pos_hint={'center_x':0.57, 'y':0.03}, \
+														 size=(57,30), background_normal='img/alpha.png')
+			img = Image(source='img/play.png', size=(35,35))
+			self.play_pause_label = Label(text='playing..', size_hint=(None,None), size=(70,20), \
+														pos_hint={'center_x':0.57,'center_y':0.017}) # TODO '..' updates while waiting for gif to end
+			self.play_pause_btn.add_widget(img)
+			
+			relative_layout.add_widget(self.gif)
+			relative_layout.add_widget(self.close_btn)
+			relative_layout.add_widget(self.mute_btn)
+			relative_layout.add_widget(self.prev_btn)
+			relative_layout.add_widget(self.next_btn)
+			relative_layout.add_widget(self.play_pause_btn)
+			relative_layout.add_widget(self.play_pause_label)
+			
+			
+			Clock.schedule_once(update_properties, 0)
 			popup.open()	
 			
-			self.loaded_check = Clock.schedule_interval(self.gif_loaded, 0)
 			
-	def gif_loaded(self, dt):
-		if self.gif.loaded:
-			self.slider.max=self.gif.duration
-			self.loaded_check.cancel()
-			# gif.duration / (gif.duration // 1) - in order for slider movement to be truly accurate to len of video
-			slider_update = Clock.schedule_interval(self.update_slider, self.gif.duration / (self.gif.duration // 1))
-	
-	def update_slider(self, dt):
-		print(self.gif.position)
-		self.slider.value+=1
-		# rounding of floating point division for silder_update implies slight difference 
-		# between final clock callback video.position and actual video.duration
-		if (self.gif.position // 1) == (self.gif.duration // 1): 
-			return False
-
-	
+			
 	def back_btn_setup(self, instance):
 		previous_dir = self.dirNames[0]
 		if len(self.dirNames)==1:
