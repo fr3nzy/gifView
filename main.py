@@ -38,7 +38,6 @@ class RootWidget(RelativeLayout):
 #TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ->
 
-#TODO gifView popup has play, pause, next, back, mute buttons
 #TODO connect callbacks to gifview buttons
 #TODO load up gifs not just webms with seperate popup view
 #TODO search through files shown
@@ -149,7 +148,7 @@ class Interface(Widget):
 		else:
 			self.first=False
 		
-		self.ctr=0
+		self.ctr=0 
 		self.fNames = []
 		self.fns = os.listdir(self.dir)
 		Clock.schedule_interval(lambda dt: self.load_thumbnails(), 0)
@@ -240,10 +239,12 @@ class Interface(Widget):
 			if instance == self.stack_layout.children[i].children[1].children[0]:
 				# loop continues at some unkown point when widgets have been removed resulting in index error
 				# return breaks the loop so..
-				return self.gifView(self.fNames[i], instance) 
+				return self.gifView(self.fNames[i], instance) # instance is btn pressed
 		
 	
-	def gifView(self, source, widget):		
+	def gifView(self, source, widget):
+		# cannot change widget in subfunctions as presumed to be creating -
+		self.widget = widget	# new variable rather than changing widget in outer scope		
 		if os.path.isdir(source):
 			self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
 			self.load_layout(source, 'subdir')
@@ -253,39 +254,87 @@ class Interface(Widget):
 				img.center_x = img.parent.x + (img.parent.width / 2)
 				img.center_y = img.parent.y + (img.parent.height / 2)
 				
+			def close_btn_press(instance):
+				popup.dismiss()
+				self.gif.state = 'stop'
+				label_updating.cancel()
+				
+			def mute_btn_press(instance):
+				if self.gif.volume == 1:
+					self.gif.volume = 0
+					instance.text = 'mute [x]'
+				else:
+					self.gif.volume = 1
+					instance.text = 'mute [ ]'
+					
+			def prev_btn_press(instance):
+				for i in range(len(self.fNames)-1):
+					if self.gif.source == self.fNames[i]:
+						self.gif.source = self.fNames[i+1] # prev gif 
+						# btn instance changed to previous btn
+						self.widget = self.stack_layout.children[i+1].children[1].children[0]
+						return
+				
+			def next_btn_press(instance):
+				for i in range(1, len(self.fNames)):
+					if self.gif.source == self.fNames[i]:
+						self.gif.source = self.fNames[i-1]
+						# btn instance changed to next btn
+						self.widget = self.stack_layout.children[i+1].children[1].children[0]
+						return
+						
+			def play_pause_btn_press(instance):
+				if instance.children[0].source == 'img/pause.png': # if pause was visible aka gif playing
+					instance.children[0].source = 'img/play.png'
+					self.play_pause_label.text = 'paused'
+					self.gif.state = 'pause'
+				elif instance.children[0].source == 'img/play.png':
+					instance.children[0].source = 'img/pause.png'
+					self.play_pause_label.text = 'playing'
+					self.gif.state = 'play'
+					
+			def update_label(dt):
+				if self.play_pause_label.text == 'playing':
+					self.play_pause_label.text = 'playing.'
+				elif self.play_pause_label.text == 'playing.':
+					self.play_pause_label.text = 'playing..'
+				elif self.play_pause_label.text == 'playing..':
+					self.play_pause_label.text = 'playing'
+			
 			relative_layout = RelativeLayout()
-			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout)
+			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout, auto_dismiss=False)
 			
 			self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
 									allow_stretch=True, size_hint=(1,0.9), pos_hint={'y':0.09})
 			self.close_btn = Button(text='close [x]', size_hint=(None,None), size=(70,20), \
 												pos_hint={'x':0.003,'y':0.003}, background_normal='img/alpha.png')
-			self.close_btn.bind(on_release=lambda instance: popup.dismiss())
+			self.close_btn.bind(on_release=close_btn_press)
 			
 			self.mute_btn = Button(text='mute [x]', size_hint=(None,None), size=(70,20), \
 												pos_hint={'x':0.004,'y':0.04}, background_normal='img/alpha.png')
+			self.mute_btn.bind(on_release=mute_btn_press)
 			
 			self.prev_btn = Button(text='[<-] previous', size_hint=(None,None), pos_hint={'x':0.2, 'y':0.003},  \
 											size=(100,28), background_normal='img/alpha.png')
+			self.prev_btn.bind(on_release=prev_btn_press)
 											
 			self.next_btn = Button(text='next [->]', size_hint=(None,None), pos_hint={'x':0.88	, 'y':0.003}, \
 											size=(70, 28), background_normal='img/alpha.png')
+			self.next_btn.bind(on_release=next_btn_press)
 											
 			self.play_pause_btn = Button(size_hint=(None,None), pos_hint={'center_x':0.57, 'y':0.03}, \
 														 size=(57,30), background_normal='img/alpha.png')
-			img = Image(source='img/play.png', size=(35,35))
-			self.play_pause_label = Label(text='playing..', size_hint=(None,None), size=(70,20), \
+			self.play_pause_btn.bind(on_release=play_pause_btn_press)
+			img = Image(source='img/pause.png', size=(35,35))
+			self.play_pause_label = Label(text='playing', size_hint=(None,None), size=(70,20), \
 														pos_hint={'center_x':0.57,'center_y':0.017}) # TODO '..' updates while waiting for gif to end
 			self.play_pause_btn.add_widget(img)
 			
-			relative_layout.add_widget(self.gif)
-			relative_layout.add_widget(self.close_btn)
-			relative_layout.add_widget(self.mute_btn)
-			relative_layout.add_widget(self.prev_btn)
-			relative_layout.add_widget(self.next_btn)
-			relative_layout.add_widget(self.play_pause_btn)
-			relative_layout.add_widget(self.play_pause_label)
+			label_updating = Clock.schedule_interval(update_label, 0.5)
 			
+			for i in [self.gif, self.close_btn, self.mute_btn, self.prev_btn, \
+						self.next_btn, self.play_pause_btn, self.play_pause_label]:
+				relative_layout.add_widget(i)
 			
 			Clock.schedule_once(update_properties, 0)
 			popup.open()	
