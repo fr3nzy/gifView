@@ -38,9 +38,8 @@ class RootWidget(RelativeLayout):
 #TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ->
 
-#TODO connect callbacks to gifview buttons
 #TODO load up gifs not just webms with seperate popup view
-#TODO search through files shown
+#TODO search through files shown, btn top right, displays txt_input left side; moving out animation?
 
 class Interface(Widget):
 
@@ -102,7 +101,7 @@ class Interface(Widget):
 		
 		if 'subdir' in args:
 			self.back_btn = Button(size_hint=(None,None), size=(80,30), \
-											pos_hint={'x': 0.005,'center_y': 0.963})
+											pos_hint={'x': 0.009,'center_y': 0.963})
 			img = Image(source='img/alpha.png', allow_stretch=True, size=(80,34))
 			self.back_btn.bind(on_release=self.back_btn_setup)
 			self.back_btn.add_widget(img)
@@ -241,7 +240,7 @@ class Interface(Widget):
 				# return breaks the loop so..
 				return self.gifView(self.fNames[i], instance) # instance is btn pressed
 		
-	
+
 	def gifView(self, source, widget):
 		# cannot change widget in subfunctions as presumed to be creating -
 		self.widget = widget	# new variable rather than changing widget in outer scope		
@@ -273,6 +272,10 @@ class Interface(Widget):
 						self.gif.source = self.fNames[i+1] # prev gif 
 						# btn instance changed to previous btn
 						self.widget = self.stack_layout.children[i+1].children[1].children[0]
+						popup.title = self.fNames[i+1]
+						self.gif.state = 'play'
+						self.play_pause_btn.children[0].source = 'img/pause.png'
+						self.play_pause_label.text = 'playing'
 						return
 				
 			def next_btn_press(instance):
@@ -280,7 +283,11 @@ class Interface(Widget):
 					if self.gif.source == self.fNames[i]:
 						self.gif.source = self.fNames[i-1]
 						# btn instance changed to next btn
-						self.widget = self.stack_layout.children[i+1].children[1].children[0]
+						self.widget = self.stack_layout.children[i-1].children[1].children[0]
+						popup.title = self.fNames[i-1]
+						self.gif.state = 'play'
+						self.play_pause_btn.children[0].source = 'img/pause.png'
+						self.play_pause_label.text = 'playing'
 						return
 						
 			def play_pause_btn_press(instance):
@@ -294,12 +301,19 @@ class Interface(Widget):
 					self.gif.state = 'play'
 					
 			def update_label(dt):
-				if self.play_pause_label.text == 'playing':
-					self.play_pause_label.text = 'playing.'
-				elif self.play_pause_label.text == 'playing.':
-					self.play_pause_label.text = 'playing..'
-				elif self.play_pause_label.text == 'playing..':
-					self.play_pause_label.text = 'playing'
+				self.dot_dot_label.text = '' if self.gif.state=='stop' or self.gif.state=='pause' \
+														else self.dot_dot_label.text
+				if self.gif.state == 'play':
+					if self.dot_dot_label.text == '':
+						self.dot_dot_label.text = '.'
+					elif self.dot_dot_label.text == '.':
+						self.dot_dot_label.text = '..'
+					elif self.dot_dot_label.text == '..':
+						self.dot_dot_label.text = ''
+				elif self.gif.state == 'stop': # end of gif?
+					self.play_pause_btn.children[0].source = 'img/play.png'
+					self.play_pause_label.text = 'paused'
+					
 			
 			relative_layout = RelativeLayout()
 			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout, auto_dismiss=False)
@@ -328,11 +342,13 @@ class Interface(Widget):
 			img = Image(source='img/pause.png', size=(35,35))
 			self.play_pause_label = Label(text='playing', size_hint=(None,None), size=(70,20), \
 														pos_hint={'center_x':0.57,'center_y':0.017}) # TODO '..' updates while waiting for gif to end
+			self.dot_dot_label = Label(text='',size_hint=(None,None), size=(20,20), \
+													pos_hint={'x':0.599, 'center_y':0.017})
 			self.play_pause_btn.add_widget(img)
 			
 			label_updating = Clock.schedule_interval(update_label, 0.5)
 			
-			for i in [self.gif, self.close_btn, self.mute_btn, self.prev_btn, \
+			for i in [self.gif, self.close_btn, self.mute_btn, self.prev_btn, self.dot_dot_label, \
 						self.next_btn, self.play_pause_btn, self.play_pause_label]:
 				relative_layout.add_widget(i)
 			
