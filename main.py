@@ -81,6 +81,16 @@ class Interface(Widget):
 		Clock.schedule_once(lambda dt: self.load_layout(dirName, 'first run'), 0.13)
 		
 		
+	def back_btn_setup(self, instance):
+		previous_dir = self.dirNames[0]
+		if len(self.dirNames)==1:
+			del self.dirNames[0]
+			self.load_layout(previous_dir) 
+		else: 
+			del self.dirNames[0]
+			self.load_layout(previous_dir,'subdir')
+			
+		
 	def load_layout(self, dir, *args):
 		self.dir = dir
 		
@@ -114,6 +124,13 @@ class Interface(Widget):
 		self.folder_btn.bind(on_release=lambda instance: self.folder_popup('not first'))
 		self.folder_btn.add_widget(img)
 		self.app.root.add_widget(self.folder_btn)
+		
+		self.search_btn = Button(size_hint=(None,None), size=(60,30), \
+											pos_hint={'x':0.8,'center_y':0.963})
+		img = Image(source='img/alpha.png', size=(60,30))
+		self.search_btn.bind(on_release=self.btn_search)
+		self.search_btn.add_widget(img)
+		self.app.root.add_widget(self.search_btn)
 		
 		self.scroll_layout = ScrollView(pos_hint={'center_x': 0.5, 'center_y': 0.42})
 		self.stack_layout = StackLayout(padding=12, \
@@ -166,15 +183,35 @@ class Interface(Widget):
 			
 			Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
 			return False # cancels clock event
+			
+		if self.ctr == 0: # if first execution
+			# update widget properties	
+			with self.navbar.canvas.before:
+				Color(92/360,92/360,92/360,1) 
+				Rectangle(pos=self.navbar.pos, size=(self.app.root.width,40))
+			# navbar btn child images property updates
+			self.folder_btn.children[0].source = 'img/folder.png'
+			self.folder_btn.children[0].x = self.folder_btn.x
+			self.folder_btn.children[0].y = self.folder_btn.y+4 # img extends beyond len specified by placeholder widget?
+			self.search_btn.children[0].source = 'img/search.png'
+			self.search_btn.children[0].x = self.search_btn.x+2
+			self.search_btn.children[0].y = self.search_btn.y+1
+			try:
+				self.back_btn.children[0].source = 'img/back.png'
+				self.back_btn.children[0].pos = self.back_btn.pos
+			except Exception as e:
+				print('\n\n\n'+str(e)+'\n\n\n')
+		
 		
 		# slice filename str if too long to fit in label optimally
 		if len(self.fns[self.ctr]) < 11:
 			label_fn = self.fns[self.ctr]
 		else:
 			label_fn = self.fns[self.ctr][:10]+'..'
-			
+						
 		
 		if self.fns[self.ctr][-4:] == 'webm':
+			# if folder contents change while program is running, self.ctr may not refer to the thumbnail produced 
 			thumbnail_fn = self.dir+'/'+'.gif_cache'+'/'+str(self.ctr)+'img.jpg'
 			if self.first: # create thumbnails
 				# get first frame of webm
@@ -218,155 +255,145 @@ class Interface(Widget):
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
 			btn.bind(on_release=self.gif_press)
 			image.add_widget(btn)
-		# navbar canvas objects	
-		with self.navbar.canvas.before:
-			Color(92/360,92/360,92/360,1) 
-			Rectangle(pos=self.navbar.pos, size=(self.app.root.width,40))
-		# navbar dir btn property updates
-		self.folder_btn.children[0].source = 'img/folder.png'
-		self.folder_btn.children[0].x = self.folder_btn.x
-		self.folder_btn.children[0].y = self.folder_btn.y+4 # why +5?
-		try:
-			self.back_btn.children[0].source = 'img/back.png'
-			self.back_btn.children[0].pos = self.back_btn.pos
-		except Exception as e:
-			print('\n\n\n'+str(e)+'\n\n\n')
 			
+	def btn_search(self, instance):
+		try: # if search_btn pressed when search_inpt is open
+			for widget in self.app.root.children:
+				if self.search_inpt is widget:
+					self.app.root.remove_widget(widget)
+					return
+		except: # if self.search_inpt does not exist
+			pass
+		self.search_inpt = TextInput(multiline=False, size_hint=(None,None), \
+											size=(180,30), pos_hint={'x':0.55,'center_y':0.965})
+		self.app.root.add_widget(self.search_inpt)
 		
 	def gif_press(self, instance):
 		for i in range(len(self.fNames)): #fNames same len as stacklayout children
 			if instance == self.stack_layout.children[i].children[1].children[0]:
-				# loop continues at some unkown point when widgets have been removed resulting in index error
-				# return breaks the loop so..
-				return self.gifView(self.fNames[i], instance) # instance is btn pressed
+				if os.path.isdir(self.fNames[i]):
+					self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
+					self.load_layout(self.fNames[i], 'subdir')
+				else: # gif is pressed
+					GifPopup(self.fNames[i], instance, self.fNames, self.stack_layout) # instance is btn pressed
+				return 
 		
+		
+		
+class GifPopup(Interface):
 
-	def gifView(self, source, widget):
-		# cannot change widget in subfunctions as presumed to be creating -
-		self.widget = widget	# new variable rather than changing widget in outer scope		
-		if os.path.isdir(source):
-			self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
-			self.load_layout(source, 'subdir')
+	def __init__(self, source, btn_pressed, fNames, stack_layout):
+		self.widget = btn_pressed	
+		self.fNames = fNames
+		self.stack_layout = stack_layout
+		
+		relative_layout = RelativeLayout()
+		self.popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout, auto_dismiss=False)
+			
+		self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
+								allow_stretch=True, size_hint=(1,0.9),	 pos_hint={'y':0.09})
+		self.close_btn = Button(text='close [x]', size_hint=(None,None), size=(70,20), \
+											pos_hint={'x':0.003,'y':0.003}, background_normal='img/alpha.png')
+		self.close_btn.bind(on_release=self.close_btn_press)	
+		
+		self.mute_btn = Button(text='mute [x]', size_hint=(None,None), size=(70,20), \
+											pos_hint={'x':0.004,'y':0.04}, background_normal='img/alpha.png')
+		self.mute_btn.bind(on_release=self.mute_btn_press)
+		
+		self.prev_btn = Button(text='[<-] previous', size_hint=(None,None), pos_hint={'x':0.2, 'y':0.003},  \
+										size=(100,28), background_normal='img/alpha.png')
+		self.prev_btn.bind(on_release=self.prev_btn_press)
+										
+		self.next_btn = Button(text='next [->]', size_hint=(None,None), pos_hint={'x':0.88	, 'y':0.003}, \
+										size=(70, 28), background_normal='img/alpha.png')
+		self.next_btn.bind(on_release=self.next_btn_press)
+										
+		self.play_pause_btn = Button(size_hint=(None,None), pos_hint={'center_x':0.57, 'y':0.03}, \
+													 size=(57,30), background_normal='img/alpha.png')
+		self.play_pause_btn.bind(on_release=self.play_pause_btn_press)
+		self.play_pause_img = Image(source='img/pause.png', size=(35,35))
+		self.play_pause_label = Label(text='playing', size_hint=(None,None), size=(70,20), \
+													pos_hint={'center_x':0.57,'center_y':0.017})
+		self.dot_dot_label = Label(text='',size_hint=(None,None), size=(20,20), \
+												pos_hint={'x':0.599, 'center_y':0.017})
+		self.play_pause_btn.add_widget(self.play_pause_img)
+		
+		self.label_updating = Clock.schedule_interval(self.update_label, 0.5)
+		
+		for i in [self.gif, self.close_btn, self.mute_btn, self.prev_btn, self.dot_dot_label, \
+					self.next_btn, self.play_pause_btn, self.play_pause_label]:
+			relative_layout.add_widget(i)
+		
+		Clock.schedule_once(self.update_properties, 0)
+		self.popup.open()		
+	
+	def update_properties(self, instance):
+		# center play/pause image
+		self.play_pause_img.center_x = self.play_pause_img.parent.x + (self.play_pause_img.parent.width / 2)
+		self.play_pause_img.center_y = self.play_pause_img.parent.y + (self.play_pause_img.parent.height / 2)
+				
+	def close_btn_press(self, instance):
+		self.popup.dismiss()
+		self.gif.state = 'stop'
+		self.label_updating.cancel()
+				
+	def mute_btn_press(self, instance):
+		if self.gif.volume == 1:
+			self.gif.volume = 0
+			instance.text = 'mute [x]'
 		else:
-			def update_properties(instance):
-				# center play/pause image
-				img.center_x = img.parent.x + (img.parent.width / 2)
-				img.center_y = img.parent.y + (img.parent.height / 2)
-				
-			def close_btn_press(instance):
-				popup.dismiss()
-				self.gif.state = 'stop'
-				label_updating.cancel()
-				
-			def mute_btn_press(instance):
-				if self.gif.volume == 1:
-					self.gif.volume = 0
-					instance.text = 'mute [x]'
-				else:
-					self.gif.volume = 1
-					instance.text = 'mute [ ]'
+			self.gif.volume = 1
+			instance.text = 'mute [ ]'
 					
-			def prev_btn_press(instance):
-				for i in range(len(self.fNames)-1):
-					if self.gif.source == self.fNames[i]:
-						self.gif.source = self.fNames[i+1] # prev gif 
-						# btn instance changed to previous btn
-						self.widget = self.stack_layout.children[i+1].children[1].children[0]
-						popup.title = self.fNames[i+1]
-						self.gif.state = 'play'
-						self.play_pause_btn.children[0].source = 'img/pause.png'
-						self.play_pause_label.text = 'playing'
-						return
+	def prev_btn_press(self, instance):
+		for i in range(len(self.fNames)-1):
+			if self.gif.source == self.fNames[i]:
+				self.gif.source = self.fNames[i+1] # prev gif 
+				# btn instance changed to previous btn
+				self.widget = self.stack_layout.children[i+1].children[1].children[0]
+				self.popup.title = self.fNames[i+1]
+				self.gif.state = 'play'
+				self.play_pause_btn.children[0].source = 'img/pause.png'
+				self.play_pause_label.text = 'playing'
+				return
 				
-			def next_btn_press(instance):
-				for i in range(1, len(self.fNames)):
-					if self.gif.source == self.fNames[i]:
-						self.gif.source = self.fNames[i-1]
-						# btn instance changed to next btn
-						self.widget = self.stack_layout.children[i-1].children[1].children[0]
-						popup.title = self.fNames[i-1]
-						self.gif.state = 'play'
-						self.play_pause_btn.children[0].source = 'img/pause.png'
-						self.play_pause_label.text = 'playing'
-						return
-						
-			def play_pause_btn_press(instance):
-				if instance.children[0].source == 'img/pause.png': # if pause was visible aka gif playing
-					instance.children[0].source = 'img/play.png'
-					self.play_pause_label.text = 'paused'
-					self.gif.state = 'pause'
-				elif instance.children[0].source == 'img/play.png':
-					instance.children[0].source = 'img/pause.png'
-					self.play_pause_label.text = 'playing'
-					self.gif.state = 'play'
-					
-			def update_label(dt):
-				self.dot_dot_label.text = '' if self.gif.state=='stop' or self.gif.state=='pause' \
-														else self.dot_dot_label.text
-				if self.gif.state == 'play':
-					if self.dot_dot_label.text == '':
-						self.dot_dot_label.text = '.'
-					elif self.dot_dot_label.text == '.':
-						self.dot_dot_label.text = '..'
-					elif self.dot_dot_label.text == '..':
-						self.dot_dot_label.text = ''
-				elif self.gif.state == 'stop': # end of gif?
-					self.play_pause_btn.children[0].source = 'img/play.png'
-					self.play_pause_label.text = 'paused'
+	def next_btn_press(self, instance):
+		for i in range(1, len(self.fNames)):
+			if self.gif.source == self.fNames[i]:
+				self.gif.source = self.fNames[i-1]
+				# btn instance changed to next btn
+				self.widget = self.stack_layout.children[i-1].children[1].children[0]
+				self.popup.title = self.fNames[i-1]
+				self.gif.state = 'play'
+				self.play_pause_btn.children[0].source = 'img/pause.png'
+				self.play_pause_label.text = 'playing'
+				return
+				
+	def play_pause_btn_press(self, instance):
+		if instance.children[0].source == 'img/pause.png': # if pause was visible aka gif playing
+			instance.children[0].source = 'img/play.png'
+			self.play_pause_label.text = 'paused'
+			self.gif.state = 'pause'
+		elif instance.children[0].source == 'img/play.png':
+			instance.children[0].source = 'img/pause.png'
+			self.play_pause_label.text = 'playing'
+			self.gif.state = 'play'
+			
+	def update_label(self, dt):
+		self.dot_dot_label.text = '' if self.gif.state=='stop' or self.gif.state=='pause' \
+												else self.dot_dot_label.text
+		if self.gif.state == 'play':
+			if self.dot_dot_label.text == '':
+				self.dot_dot_label.text = '.'
+			elif self.dot_dot_label.text == '.':
+				self.dot_dot_label.text = '..'
+			elif self.dot_dot_label.text == '..':
+				self.dot_dot_label.text = ''
+		elif self.gif.state == 'stop': # end of gif?
+			self.play_pause_btn.children[0].source = 'img/play.png'
+			self.play_pause_label.text = 'paused'
 					
 			
-			relative_layout = RelativeLayout()
-			popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout, auto_dismiss=False)
-			
-			self.gif = Video(source=source, volume=0, state='play', anim_loop=0, \
-									allow_stretch=True, size_hint=(1,0.9), pos_hint={'y':0.09})
-			self.close_btn = Button(text='close [x]', size_hint=(None,None), size=(70,20), \
-												pos_hint={'x':0.003,'y':0.003}, background_normal='img/alpha.png')
-			self.close_btn.bind(on_release=close_btn_press)
-			
-			self.mute_btn = Button(text='mute [x]', size_hint=(None,None), size=(70,20), \
-												pos_hint={'x':0.004,'y':0.04}, background_normal='img/alpha.png')
-			self.mute_btn.bind(on_release=mute_btn_press)
-			
-			self.prev_btn = Button(text='[<-] previous', size_hint=(None,None), pos_hint={'x':0.2, 'y':0.003},  \
-											size=(100,28), background_normal='img/alpha.png')
-			self.prev_btn.bind(on_release=prev_btn_press)
-											
-			self.next_btn = Button(text='next [->]', size_hint=(None,None), pos_hint={'x':0.88	, 'y':0.003}, \
-											size=(70, 28), background_normal='img/alpha.png')
-			self.next_btn.bind(on_release=next_btn_press)
-											
-			self.play_pause_btn = Button(size_hint=(None,None), pos_hint={'center_x':0.57, 'y':0.03}, \
-														 size=(57,30), background_normal='img/alpha.png')
-			self.play_pause_btn.bind(on_release=play_pause_btn_press)
-			img = Image(source='img/pause.png', size=(35,35))
-			self.play_pause_label = Label(text='playing', size_hint=(None,None), size=(70,20), \
-														pos_hint={'center_x':0.57,'center_y':0.017}) # TODO '..' updates while waiting for gif to end
-			self.dot_dot_label = Label(text='',size_hint=(None,None), size=(20,20), \
-													pos_hint={'x':0.599, 'center_y':0.017})
-			self.play_pause_btn.add_widget(img)
-			
-			label_updating = Clock.schedule_interval(update_label, 0.5)
-			
-			for i in [self.gif, self.close_btn, self.mute_btn, self.prev_btn, self.dot_dot_label, \
-						self.next_btn, self.play_pause_btn, self.play_pause_label]:
-				relative_layout.add_widget(i)
-			
-			Clock.schedule_once(update_properties, 0)
-			popup.open()	
-			
-			
-			
-	def back_btn_setup(self, instance):
-		previous_dir = self.dirNames[0]
-		if len(self.dirNames)==1:
-			del self.dirNames[0]
-			self.load_layout(previous_dir) 
-		else: 
-			del self.dirNames[0]
-			self.load_layout(previous_dir,'subdir')
-		
-
 
 class GifApp(App):
 	
