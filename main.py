@@ -83,11 +83,10 @@ class Interface(Widget):
 		
 	def back_btn_setup(self, instance):
 		previous_dir = self.dirNames[0]
-		if len(self.dirNames)==1:
-			del self.dirNames[0]
+		del self.dirNames[0]
+		if len(self.dirNames)==0:
 			self.load_layout(previous_dir) 
 		else: 
-			del self.dirNames[0]
 			self.load_layout(previous_dir,'subdir')
 			
 		
@@ -105,7 +104,7 @@ class Interface(Widget):
 			print(e)
 		
 		
-		# navbar canvas objects load on next frame(s) load_button() so attributes have loaded
+		# navbar canvas objects load on next frame(s) load_button() after attributes have loaded
 		self.navbar = Widget(size_hint=(None,None), pos_hint={'y':0.932})
 		self.app.root.add_widget(self.navbar)
 		
@@ -142,7 +141,8 @@ class Interface(Widget):
 	
 		#######################################################			
 		
-		# delete ',gif_cache' dir from previous run in case changes have been made since then
+		# delete ',gif_cache' dir from previous run from cwd and all subdirs
+		# in case changes have been made since then
 		if 'first run' in args:
 			for directory,subdir,files in os.walk(self.dir):
 				subprocess.call(['rm', '-rf', directory+'/.gif_cache'])
@@ -165,6 +165,7 @@ class Interface(Widget):
 			self.first=False
 		
 		self.ctr=0 
+		self.fNames_url = []
 		self.fNames = []
 		self.fns = os.listdir(self.dir)
 		Clock.schedule_interval(lambda dt: self.load_thumbnails(), 0)
@@ -174,12 +175,11 @@ class Interface(Widget):
 		if self.ctr == len(self.fns): # if we have gone through all files in current dir
 			try:
 				self.loading_popup.dismiss()
-			except Exception as e:
+			except Exception as e: # if self.first=False
 				print('\n\n\n'+str(e)+'\n\n\n')
 			
 			# relate stack_layout height to number of children - to allow scroll child must be larger than scroll
-			height = sum([100/4.5 for child in self.stack_layout.children])
-			self.stack_layout.height = height	
+			self.stack_layout.height = sum([100/4.5 for child in self.stack_layout.children])
 			
 			Clock.schedule_once(self.load_buttons) # next frame - required for widgets to update attributes
 			return False # cancels clock event
@@ -199,15 +199,15 @@ class Interface(Widget):
 			try:
 				self.back_btn.children[0].source = 'img/back.png'
 				self.back_btn.children[0].pos = self.back_btn.pos
-			except Exception as e:
+			except Exception as e: # if not a 'subdir'
 				print('\n\n\n'+str(e)+'\n\n\n')
 		
 		
 		# slice filename str if too long to fit in label optimally
-		if len(self.fns[self.ctr]) < 11:
-			label_fn = self.fns[self.ctr]
-		else:
+		if len(self.fns[self.ctr]) >= 11:
 			label_fn = self.fns[self.ctr][:10]+'..'
+		else:
+			label_fn = self.fns[self.ctr]
 						
 		
 		if self.fns[self.ctr][-4:] == 'webm':
@@ -218,7 +218,8 @@ class Interface(Widget):
 				subprocess.call(['ffmpeg', '-i', self.dir+'/'+self.fns[self.ctr], '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
 				self.progress.value+=1
 				
-			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
+			self.fNames.append(self.fns[self.ctr])
+			self.fNames_url.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
 			self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
 					allow_stretch=True, keep_ratio=False)
 			label = Label(text=label_fn, text_size=(100, None))
@@ -230,7 +231,7 @@ class Interface(Widget):
 			if self.first:
 				self.progress.value+=1
 				
-			self.fNames.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
+			self.fNames_url.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
 			self.thumbnail = Image(source='img/System-folder-icon.png',size_hint=(None,None),
 					allow_stretch=True, keep_ratio=False)
 			label = Label(text=label_fn, text_size=(100, None))
@@ -251,12 +252,18 @@ class Interface(Widget):
 	
 	def load_buttons(self, dt):
 		for layout in self.stack_layout.children: # images are children to boxlayouts which are child to stacklayout
-			image = layout.children[1] # widgets are added to front of list not end 
+			image = layout.children[1] # widgets are added to index 0
 			btn = Button(background_normal='img/alpha.png',pos=(image.x, image.y))
 			btn.bind(on_release=self.gif_press)
 			image.add_widget(btn)
 			
+			
 	def btn_search(self, instance):
+		def search(instance):
+			for filename in self.fNames:
+				if instance.text in filename[:len(instance.text)]:
+					print(filename)
+		
 		try: # if search_btn pressed when search_inpt is open
 			for widget in self.app.root.children:
 				if self.search_inpt is widget:
@@ -266,25 +273,29 @@ class Interface(Widget):
 			pass
 		self.search_inpt = TextInput(multiline=False, size_hint=(None,None), \
 											size=(180,30), pos_hint={'x':0.55,'center_y':0.965})
+		self.search_inpt.bind(on_text_validate=search)
 		self.app.root.add_widget(self.search_inpt)
 		
+		
 	def gif_press(self, instance):
-		for i in range(len(self.fNames)): #fNames same len as stacklayout children
-			if instance == self.stack_layout.children[i].children[1].children[0]:
-				if os.path.isdir(self.fNames[i]):
-					self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
-					self.load_layout(self.fNames[i], 'subdir')
-				else: # gif is pressed
-					GifPopup(self.fNames[i], instance, self.fNames, self.stack_layout) # instance is btn pressed
-				return 
+		for i in range(len(self.stack_layout.children)):
+			# since self.stack_layout children & fNames_url[] were created in tandem,
+			# image child of 'i'th item in self.stack_layout points to relevant url in fNames_url[i]
+			if instance == self.stack_layout.children[i].children[1].children[0]:  
+				print('Yay')
+				self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
+				return self.load_layout(self.fNames_url[i], 'subdir')
+		
+		GifPopup(instance.parent.source, instance, self.fNames_url, self.stack_layout) # instance is btn pressed
+		return  #  return control flow to Interface() once GifPopup().__init__() run
 		
 		
 		
-class GifPopup(Interface):
+class GifPopup(Widget):
 
 	def __init__(self, source, btn_pressed, fNames, stack_layout):
 		self.widget = btn_pressed	
-		self.fNames = fNames
+		self.fNames_url = fNames
 		self.stack_layout = stack_layout
 		
 		relative_layout = RelativeLayout()
@@ -346,24 +357,24 @@ class GifPopup(Interface):
 			instance.text = 'mute [ ]'
 					
 	def prev_btn_press(self, instance):
-		for i in range(len(self.fNames)-1):
-			if self.gif.source == self.fNames[i]:
-				self.gif.source = self.fNames[i+1] # prev gif 
+		for i in range(len(self.fNames_url)-1):
+			if self.gif.source == self.fNames_url[i]:
+				self.gif.source = self.fNames_url[i+1] # prev gif 
 				# btn instance changed to previous btn
 				self.widget = self.stack_layout.children[i+1].children[1].children[0]
-				self.popup.title = self.fNames[i+1]
+				self.popup.title = self.fNames_url[i+1]
 				self.gif.state = 'play'
 				self.play_pause_btn.children[0].source = 'img/pause.png'
 				self.play_pause_label.text = 'playing'
 				return
 				
 	def next_btn_press(self, instance):
-		for i in range(1, len(self.fNames)):
-			if self.gif.source == self.fNames[i]:
-				self.gif.source = self.fNames[i-1]
+		for i in range(1, len(self.fNames_url)):
+			if self.gif.source == self.fNames_url[i]:
+				self.gif.source = self.fNames_url[i-1]
 				# btn instance changed to next btn
 				self.widget = self.stack_layout.children[i-1].children[1].children[0]
-				self.popup.title = self.fNames[i-1]
+				self.popup.title = self.fNames_url[i-1]
 				self.gif.state = 'play'
 				self.play_pause_btn.children[0].source = 'img/pause.png'
 				self.play_pause_label.text = 'playing'
