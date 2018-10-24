@@ -282,13 +282,13 @@ class Interface(Widget):
 			# since self.stack_layout children & fNames_url[] were created in tandem,
 			# image child of 'i'th item in self.stack_layout points to relevant url in fNames_url[i]
 			if instance == self.stack_layout.children[i].children[1].children[0]:  
-				print('Yay')
-				self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
-				return self.load_layout(self.fNames_url[i], 'subdir')
-		
-		GifPopup(instance.parent.source, instance, self.fNames_url, self.stack_layout) # instance is btn pressed
-		return  #  return control flow to Interface() once GifPopup().__init__() run
-		
+				if os.path.isdir(self.fNames_url[i]):
+					self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
+					self.load_layout(self.fNames_url[i], 'subdir')
+				else:
+					print(self.fNames[0], self.fNames_url[0])
+					GifPopup(self.fNames_url[i], instance, self.fNames_url, self.stack_layout) # instance is btn pressed
+				return  	
 		
 		
 class GifPopup(Widget):
