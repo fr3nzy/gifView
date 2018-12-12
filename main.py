@@ -15,8 +15,7 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>
-#
-#
+########################################################################################
 
 import kivy
 
@@ -58,8 +57,7 @@ class RootWidget(RelativeLayout):
 #TODO when is it actually used?  bind doesn't work without it, 
 #TODO understand kivy gui main loop ?
 
-#TODO load up gifs not just webms with seperate popup view
-#TODO search through files shown, btn top right, displays txt_input left side; moving out animation?
+#TODO load up gifs not just webms with seperate popup view?
 
 class Interface(Widget):
 
