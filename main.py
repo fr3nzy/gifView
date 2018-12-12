@@ -1,3 +1,23 @@
+#    vieW is a webm viewer - select your folder and all webms present within will be watchable.
+#    vieW was developed using Kivy and Python3, by a novice fellow seeking to further their programming 'expertise'
+#    Work is still in progress :)
+#    Copyright (C) 2018  noTthis?
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>
+#
+#
+
 import kivy
 
 from kivy.config import Config
@@ -36,7 +56,7 @@ class RootWidget(RelativeLayout):
 
 #TODO events aren't triggered if class doesn't inherit from Widget class
 #TODO when is it actually used?  bind doesn't work without it, 
-#TODO understand kivy gui main loop ->
+#TODO understand kivy gui main loop ?
 
 #TODO load up gifs not just webms with seperate popup view
 #TODO search through files shown, btn top right, displays txt_input left side; moving out animation?
@@ -45,6 +65,7 @@ class Interface(Widget):
 
 	def __init__(self):
 		super().__init__()
+		self.app = App.get_running_app()
 		self.folder_popup()
 		
 	
@@ -69,7 +90,6 @@ class Interface(Widget):
 	# on_press event triggers callback passed with parameter - instance of btn here
 	def btn_press(self, instance):
 		self.popup.dismiss()
-		self.app = App.get_running_app()
 		try:
 			self.app.root.remove_widget(self.app.root.ids.open_popup) 
 		except Exception as e:
@@ -89,6 +109,12 @@ class Interface(Widget):
 		else: 
 			self.load_layout(previous_dir,'subdir')
 			
+			
+	def about_dialog(self, instance):
+		label = Label(text='''vieW is a webm viewer - select your folder and all\n webms present within will be watchable.\n  vieW was developed using Kivy and Python3,\n by a novice fellow \nseeking to further their programming \'expertise\' \n Work is still in progress :) \n\n[i]Copyright © 2018  [b]noTthis?[/b]\nLicensed under GPLv3[/i]''',halign='center', markup=True)
+		popup = Popup(title='About vieW?', content=label, size_hint=(0.5,0.5))
+		popup.open()
+			
 		
 	def load_layout(self, dir, *args):
 		self.dir = dir
@@ -100,6 +126,7 @@ class Interface(Widget):
 			if len(self.app.root.children)>0: # has stack_layout been been instantiated before?
 				for widget in self.app.root.children:
 					self.app.root.remove_widget(widget)
+					self.app.root.canvas.clear()
 		except Exception as e:
 			print(e)
 		
@@ -115,6 +142,13 @@ class Interface(Widget):
 			self.back_btn.bind(on_release=self.back_btn_setup)
 			self.back_btn.add_widget(img)
 			self.app.root.add_widget(self.back_btn)
+		else:
+			about_btn = Button(size_hint=(None,None), size=(80,30), \
+											pos_hint={'x': 0.009,'center_y': 0.963}, text='About?')
+			about_btn.background_normal = 'img/alpha.png'
+			about_btn.bind(on_release=self.about_dialog)
+			self.app.root.add_widget(about_btn)
+			
 		
 		# img source is alpha until interface loaded otherwise img visibile at 0,0 
 		self.folder_btn = Button(size_hint=(None,None), size=(80,30), \
@@ -170,7 +204,7 @@ class Interface(Widget):
 		self.fns = os.listdir(self.dir)
 		Clock.schedule_interval(lambda dt: self.load_thumbnails(), 0)
 	
-	
+
 	def load_thumbnails(self):
 		if self.ctr == len(self.fns): # if we have gone through all files in current dir
 			try:
@@ -218,7 +252,6 @@ class Interface(Widget):
 				subprocess.call(['ffmpeg', '-i', self.dir+'/'+self.fns[self.ctr], '-ss', '00:00:00.0', '-vframes', '1', thumbnail_fn])
 				self.progress.value+=1
 				
-			self.fNames.append(self.fns[self.ctr])
 			self.fNames_url.append('{}/{}'.format(self.dir,self.fns[self.ctr]))
 			self.thumbnail = Image(source=thumbnail_fn,size_hint=(None,None),
 					allow_stretch=True, keep_ratio=False)
@@ -245,6 +278,7 @@ class Interface(Widget):
 		thumb_layout.add_widget(self.thumbnail)
 		thumb_layout.add_widget(label)
 		
+		self.fNames.append(self.fns[self.ctr])
 		self.stack_layout.add_widget(thumb_layout,
 				index=len(self.stack_layout.children)) # add widgets to end 	
 		self.ctr+=1
@@ -258,25 +292,6 @@ class Interface(Widget):
 			image.add_widget(btn)
 			
 			
-	def btn_search(self, instance):
-		def search(instance):
-			for filename in self.fNames:
-				if instance.text in filename[:len(instance.text)]:
-					print(filename)
-		
-		try: # if search_btn pressed when search_inpt is open
-			for widget in self.app.root.children:
-				if self.search_inpt is widget:
-					self.app.root.remove_widget(widget)
-					return
-		except: # if self.search_inpt does not exist
-			pass
-		self.search_inpt = TextInput(multiline=False, size_hint=(None,None), \
-											size=(180,30), pos_hint={'x':0.55,'center_y':0.965})
-		self.search_inpt.bind(on_text_validate=search)
-		self.app.root.add_widget(self.search_inpt)
-		
-		
 	def gif_press(self, instance):
 		for i in range(len(self.stack_layout.children)):
 			# since self.stack_layout children & fNames_url[] were created in tandem,
@@ -286,10 +301,83 @@ class Interface(Widget):
 					self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
 					self.load_layout(self.fNames_url[i], 'subdir')
 				else:
-					print(self.fNames[0], self.fNames_url[0])
 					GifPopup(self.fNames_url[i], instance, self.fNames_url, self.stack_layout) # instance is btn pressed
 				return  	
+			
+			
+	def btn_search(self, instance):
+		SearchPopup(self.fNames_url, self.fNames, self.dir)
 		
+
+
+class SearchPopup(Widget):
+
+	def __init__(self, fNames_url, fNames, current_dir):
+		self.app = App.get_running_app()
+		self.fNames = fNames
+		self.fNames_url = fNames_url
+		self.dir = current_dir
+		
+		search_inpt = TextInput(multiline=False, size_hint=(0.9,0.08), \
+											 pos_hint={'center_x':0.5,'y':0.9})
+		search_inpt.bind(on_text_validate=self.search)
+		close_btn = Button(text='close X', size_hint=(0.2,0.07), pos_hint={'center_x':0.5})
+		close_btn.background_normal = 'img/alpha.png'
+		close_btn.bind(on_press=self.close_search)
+		self.relative_layout = RelativeLayout()
+		self.relative_layout.add_widget(close_btn)
+		self.relative_layout.add_widget(search_inpt)
+		self.search_popup = Popup(title='search', content=self.relative_layout, 
+												size_hint=(0.7,0.7), auto_dismiss=False)
+		self.search_popup.open()
+		
+		
+	def search(self, instance):
+		# remove scroll and children from previous search
+		try: # has scroll be instantiated before?
+			self.scroll_results.remove_widget(self.box)
+		except Exception as e:
+				print('\n\n{}\n\n'.format(e))						
+		self.box = BoxLayout(orientation='vertical', size_hint_y=None,height=10,padding=(0,10))
+		self.scroll_results = ScrollView(pos_hint={'center_x':0.5, 'center_y':0.47}, size_hint=(1,0.8))
+		self.scroll_results.add_widget(self.box)
+		self.relative_layout.add_widget(self.scroll_results)
+				
+		# list of filenames with searched prefix
+		found = []
+		for filename in range(len(self.fNames)):
+			if instance.text in self.fNames[filename][:len(instance.text)]:
+				if os.path.isdir(self.fNames[filename]) is False: # don't want to search for dirs
+					found.append([self.fNames[filename], self.fNames_url[filename]]) # filename, file url
+		
+		for i in range(len(found)): 
+			btn = Button(background_normal='img/alpha.png', text=found[i][0], size_hint_y=None, height=70)
+			self.box.add_widget(btn)
+			self.box.height+=70
+		
+		# wait for next frame so pos of btns in box have registered, so can add thumbnails
+		Clock.schedule_once(lambda dt: self.load_thumbnails(found), 0)
+		
+	
+	def load_thumbnails(self, found):
+		present_thumbnails = os.listdir(self.dir+'/.gif_cache/')
+		for btn in self.box.children:
+			for filename in found:
+				if btn.text == filename[0]:
+					src = filename[1]
+					# generate thumbnail for webm and store in previously created .gif_cache folder
+					if filename[0][:-5]+'.jpg' not in present_thumbnails: # no need to recreate thumbnails set in previous searches
+						subprocess.call(['ffmpeg', '-i', src, '-ss', '00:00:00.0', '-vframes', '1', 
+												self.dir+'/.gif_cache/'+filename[0][:-5]+'.jpg'])
+					img = Image(source=self.dir+'/.gif_cache/'+filename[0][:-5]+'.jpg', size_hint=(0.45,None),
+										height=50, pos=(btn.x+10, btn.y+10), keep_ratio=False, allow_stretch=True)
+					btn.add_widget(img)
+					
+			
+	def close_search(self, instance):
+		self.search_popup.dismiss()
+				
+
 		
 class GifPopup(Widget):
 
@@ -370,7 +458,7 @@ class GifPopup(Widget):
 				
 	def next_btn_press(self, instance):
 		for i in range(1, len(self.fNames_url)):
-			if self.gif.source == self.fNames_url[i]:
+			if self.gif.source == self.fNames_url[i]:	
 				self.gif.source = self.fNames_url[i-1]
 				# btn instance changed to next btn
 				self.widget = self.stack_layout.children[i-1].children[1].children[0]
