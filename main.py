@@ -15,7 +15,8 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>
-########################################################################################
+#
+#
 
 import kivy
 
@@ -299,7 +300,7 @@ class Interface(Widget):
 					self.dirNames.insert(0, self.dir) # self.dir is cwd - when going back will be parent(s) to subdir(s)
 					self.load_layout(self.fNames_url[i], 'subdir')
 				else:
-					GifPopup(self.fNames_url[i], instance, self.fNames_url, self.stack_layout) # instance is btn pressed
+					GifPopup(self.fNames_url[i], self.fNames_url)
 				return  	
 			
 			
@@ -342,25 +343,26 @@ class SearchPopup(Widget):
 		self.relative_layout.add_widget(self.scroll_results)
 				
 		# list of filenames with searched prefix
-		found = []
+		self.found = []
 		for filename in range(len(self.fNames)):
 			if instance.text in self.fNames[filename][:len(instance.text)]:
 				if os.path.isdir(self.fNames[filename]) is False: # don't want to search for dirs
-					found.append([self.fNames[filename], self.fNames_url[filename]]) # filename, file url
+					self.found.append([self.fNames[filename], self.fNames_url[filename]]) # filename, file url
 		
-		for i in range(len(found)): 
-			btn = Button(background_normal='img/alpha.png', text=found[i][0], size_hint_y=None, height=70)
+		for i in range(len(self.found)): 
+			btn = Button(background_normal='img/alpha.png', text=self.found[i][0], size_hint_y=None, height=70)
+			btn.bind(on_release=self.btn_press)
 			self.box.add_widget(btn)
 			self.box.height+=70
 		
 		# wait for next frame so pos of btns in box have registered, so can add thumbnails
-		Clock.schedule_once(lambda dt: self.load_thumbnails(found), 0)
+		Clock.schedule_once(self.load_thumbnails, 0)
 		
 	
-	def load_thumbnails(self, found):
+	def load_thumbnails(self, dt):
 		present_thumbnails = os.listdir(self.dir+'/.gif_cache/')
 		for btn in self.box.children:
-			for filename in found:
+			for filename in self.found:
 				if btn.text == filename[0]:
 					src = filename[1]
 					# generate thumbnail for webm and store in previously created .gif_cache folder
@@ -372,6 +374,12 @@ class SearchPopup(Widget):
 					btn.add_widget(img)
 					
 			
+	def btn_press(self, instance):
+		trim_url = len(self.dir+'/.gif_cache')
+		print(self.dir+instance.children[0].source[trim_url:-4]+'.webm')
+		SearchedGif(self.dir+instance.children[0].source[trim_url:-4]+'.webm', self.found)
+			
+			
 	def close_search(self, instance):
 		self.search_popup.dismiss()
 				
@@ -379,10 +387,8 @@ class SearchPopup(Widget):
 		
 class GifPopup(Widget):
 
-	def __init__(self, source, btn_pressed, fNames, stack_layout):
-		self.widget = btn_pressed	
-		self.fNames_url = fNames
-		self.stack_layout = stack_layout
+	def __init__(self, source, fNames_url):
+		self.fNames_url = fNames_url
 		
 		relative_layout = RelativeLayout()
 		self.popup = Popup(title=source, size_hint=(0.9,0.95), content=relative_layout, auto_dismiss=False)
@@ -446,8 +452,6 @@ class GifPopup(Widget):
 		for i in range(len(self.fNames_url)-1):
 			if self.gif.source == self.fNames_url[i]:
 				self.gif.source = self.fNames_url[i+1] # prev gif 
-				# btn instance changed to previous btn
-				self.widget = self.stack_layout.children[i+1].children[1].children[0]
 				self.popup.title = self.fNames_url[i+1]
 				self.gif.state = 'play'
 				self.play_pause_btn.children[0].source = 'img/pause.png'
@@ -458,8 +462,6 @@ class GifPopup(Widget):
 		for i in range(1, len(self.fNames_url)):
 			if self.gif.source == self.fNames_url[i]:	
 				self.gif.source = self.fNames_url[i-1]
-				# btn instance changed to next btn
-				self.widget = self.stack_layout.children[i-1].children[1].children[0]
 				self.popup.title = self.fNames_url[i-1]
 				self.gif.state = 'play'
 				self.play_pause_btn.children[0].source = 'img/pause.png'
@@ -490,6 +492,30 @@ class GifPopup(Widget):
 			self.play_pause_btn.children[0].source = 'img/play.png'
 			self.play_pause_label.text = 'paused'
 					
+			
+			
+class SearchedGif(GifPopup):
+
+	def next_btn_press(self, instance):
+		for i in range(len(self.fNames_url)-1):
+			if self.gif.source == self.fNames_url[i][1]:
+				self.gif.source = self.fNames_url[i+1][1] # prev gif 
+				self.popup.title = self.fNames_url[i+1][1]
+				self.gif.state = 'play'
+				self.play_pause_btn.children[0].source = 'img/pause.png'
+				self.play_pause_label.text = 'playing'
+				return
+				
+	def prev_btn_press(self, instance):
+		for i in range(1, len(self.fNames_url)):
+			if self.gif.source == self.fNames_url[i][1]:	
+				self.gif.source = self.fNames_url[i-1][1]
+				self.popup.title = self.fNames_url[i-1][1]
+				self.gif.state = 'play'
+				self.play_pause_btn.children[0].source = 'img/pause.png'
+				self.play_pause_label.text = 'playing'
+				return			
+			
 			
 
 class GifApp(App):
